@@ -36,3 +36,4 @@ API keys are entered at runtime and stored only in your browser's localStorage. 
 - Chart.js via CDN
 - Vanilla JavaScript
 - localStorage for data persistence
+
