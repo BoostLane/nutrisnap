@@ -2286,7 +2286,8 @@
         }
 
         // ==================== START APP ====================
-        init();
+        // init() is called by setupPinScreen() after PIN verification
+        // Do NOT call init() here — it would bypass PIN auth and cause double initialization
     </script>
 </body>
 </html>
