@@ -1047,15 +1047,8 @@
             });
         }
 
-        // Start with PIN screen
-        try {
-            setupPinScreen();
-        } catch (e) {
-            console.error('NutriSnap PIN screen error:', e);
-            showErrorScreen(e.message);
-        }
-
         // ==================== CONFIG & STATE ====================
+        // IMPORTANT: Must be declared before setupPinScreen() since init() references these
         const APP_VERSION = '2.0.0';
         const DEFAULT_CONFIG = {
             apiProvider: 'openai',
@@ -1068,6 +1061,14 @@
         let entries = [];
         let currentAnalyzedFoods = [];
         let manualFoods = [];
+
+        // Start with PIN screen
+        try {
+            setupPinScreen();
+        } catch (e) {
+            console.error('NutriSnap PIN screen error:', e);
+            showErrorScreen(e.message);
+        }
 
         // ==================== STORAGE ====================
         function saveConfig() {
