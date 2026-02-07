@@ -583,7 +583,7 @@
 
     <div class="app-container">
         <!-- Onboarding Screen -->
-        <div id="onboarding" class="onboarding-screen">
+        <div id="onboarding" class="onboarding-screen hidden">
             <div class="text-center w-full max-w-sm">
                 <h1 class="text-3xl font-bold text-emerald-600 mb-4">NutriSnap</h1>
                 <div id="onboarding-step" class="mb-6"></div>
@@ -988,7 +988,12 @@
             if (hash === PIN_HASH) {
                 document.getElementById('pin-screen').classList.add('hidden');
                 sessionStorage.setItem('nutrisnap_auth', 'true');
-                init();
+                try {
+                    init();
+                } catch (e) {
+                    console.error('NutriSnap startup error after PIN:', e);
+                    showErrorScreen(e.message);
+                }
             } else {
                 showPinError();
             }
@@ -998,7 +1003,12 @@
             // Check if already authenticated this session
             if (sessionStorage.getItem('nutrisnap_auth') === 'true') {
                 document.getElementById('pin-screen').classList.add('hidden');
-                init();
+                try {
+                    init();
+                } catch (e) {
+                    console.error('NutriSnap startup error:', e);
+                    showErrorScreen(e.message);
+                }
                 return;
             }
 
@@ -1038,7 +1048,12 @@
         }
 
         // Start with PIN screen
-        setupPinScreen();
+        try {
+            setupPinScreen();
+        } catch (e) {
+            console.error('NutriSnap PIN screen error:', e);
+            showErrorScreen(e.message);
+        }
 
         // ==================== CONFIG & STATE ====================
         const APP_VERSION = '2.0.0';
@@ -1061,9 +1076,24 @@
         }
 
         function loadConfig() {
-            const stored = localStorage.getItem('nutrisnap_config');
-            if (stored) {
-                config = { ...DEFAULT_CONFIG, ...JSON.parse(stored) };
+            try {
+                const stored = localStorage.getItem('nutrisnap_config');
+                if (stored) {
+                    var parsed = JSON.parse(stored);
+                    config = { ...DEFAULT_CONFIG, ...parsed };
+                    // Validate apiProvider
+                    if (!['claude', 'openai'].includes(config.apiProvider)) {
+                        config.apiProvider = 'openai';
+                    }
+                    // Validate dailyGoals
+                    if (!config.dailyGoals || typeof config.dailyGoals !== 'object') {
+                        config.dailyGoals = { ...DEFAULT_CONFIG.dailyGoals };
+                    }
+                }
+            } catch (e) {
+                console.error('Error loading config, resetting to defaults:', e);
+                config = { ...DEFAULT_CONFIG };
+                localStorage.removeItem('nutrisnap_config');
             }
         }
 
@@ -1072,29 +1102,75 @@
         }
 
         function loadEntries() {
-            const stored = localStorage.getItem('nutrisnap_entries');
-            if (stored) {
-                entries = JSON.parse(stored);
+            try {
+                const stored = localStorage.getItem('nutrisnap_entries');
+                if (stored) {
+                    var parsed = JSON.parse(stored);
+                    if (Array.isArray(parsed)) {
+                        entries = parsed;
+                    } else {
+                        entries = [];
+                    }
+                }
+            } catch (e) {
+                console.error('Error loading entries, resetting:', e);
+                entries = [];
+                localStorage.removeItem('nutrisnap_entries');
             }
+        }
+
+        // ==================== ERROR RECOVERY ====================
+        function showErrorScreen(errorMsg) {
+            // Hide everything else
+            document.getElementById('pin-screen').classList.add('hidden');
+            document.getElementById('onboarding').classList.add('hidden');
+
+            // Create error overlay
+            var errorDiv = document.createElement('div');
+            errorDiv.id = 'error-screen';
+            errorDiv.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:white;z-index:3000;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;text-align:center;';
+            errorDiv.innerHTML = '<h1 style="font-size:1.5rem;font-weight:bold;color:#ef4444;margin-bottom:1rem;">Something went wrong</h1>' +
+                '<p style="color:#6b7280;margin-bottom:0.5rem;">NutriSnap had a startup error.</p>' +
+                '<p style="color:#9ca3af;font-size:0.8rem;margin-bottom:1.5rem;">' + (errorMsg || 'Unknown error') + '</p>' +
+                '<button onclick="resetAndReload()" style="background:#10b981;color:white;border:none;padding:0.75rem 2rem;border-radius:0.5rem;font-size:1rem;cursor:pointer;margin-bottom:0.75rem;">Reset App & Reload</button>' +
+                '<button onclick="location.reload()" style="background:#e5e7eb;color:#374151;border:none;padding:0.75rem 2rem;border-radius:0.5rem;font-size:1rem;cursor:pointer;">Just Reload</button>';
+            document.body.appendChild(errorDiv);
+        }
+
+        function resetAndReload() {
+            localStorage.removeItem('nutrisnap_config');
+            localStorage.removeItem('nutrisnap_entries');
+            sessionStorage.removeItem('nutrisnap_auth');
+            location.reload();
         }
 
         // ==================== INITIALIZATION ====================
         function init() {
-            loadConfig();
-            loadEntries();
+            try {
+                loadConfig();
+                loadEntries();
 
-            if (!config.onboardingComplete) {
-                showOnboarding();
-            } else {
-                document.getElementById('onboarding').classList.add('hidden');
-                initializeApp();
+                if (!config.onboardingComplete) {
+                    showOnboarding();
+                } else {
+                    document.getElementById('onboarding').classList.add('hidden');
+                    initializeApp();
+                }
+            } catch (e) {
+                console.error('NutriSnap init error:', e);
+                showErrorScreen(e.message);
             }
         }
 
         function initializeApp() {
-            setupEventListeners();
-            switchScreen('dashboard-screen');
-            updateDashboard();
+            try {
+                setupEventListeners();
+                switchScreen('dashboard-screen');
+                updateDashboard();
+            } catch (e) {
+                console.error('NutriSnap initializeApp error:', e);
+                showErrorScreen(e.message);
+            }
         }
 
         // ==================== ONBOARDING ====================
@@ -1286,7 +1362,9 @@
         }
 
         function updateCalorieChart(current, goal) {
-            const ctx = document.getElementById('calorieChart').getContext('2d');
+            var canvasEl = document.getElementById('calorieChart');
+            if (!canvasEl) { console.warn('calorieChart canvas not found'); return; }
+            const ctx = canvasEl.getContext('2d');
             let color = '#10b981'; // green
             if (current > goal) {
                 color = '#ef4444'; // red
@@ -2088,11 +2166,20 @@
 
         // ==================== SETTINGS ====================
         function loadSettingsUI() {
-            document.getElementById('provider-' + config.apiProvider).checked = true;
-            document.getElementById('goal-calories').value = config.dailyGoals.calories;
-            document.getElementById('goal-protein').value = config.dailyGoals.protein;
-            document.getElementById('goal-carbs').value = config.dailyGoals.carbs;
-            document.getElementById('goal-fat').value = config.dailyGoals.fat;
+            try {
+                var providerEl = document.getElementById('provider-' + config.apiProvider);
+                if (providerEl) providerEl.checked = true;
+                var calEl = document.getElementById('goal-calories');
+                if (calEl) calEl.value = config.dailyGoals.calories;
+                var protEl = document.getElementById('goal-protein');
+                if (protEl) protEl.value = config.dailyGoals.protein;
+                var carbsEl = document.getElementById('goal-carbs');
+                if (carbsEl) carbsEl.value = config.dailyGoals.carbs;
+                var fatEl = document.getElementById('goal-fat');
+                if (fatEl) fatEl.value = config.dailyGoals.fat;
+            } catch (e) {
+                console.error('Error loading settings UI:', e);
+            }
         }
 
         function setupToggleButton() {
